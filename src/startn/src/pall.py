@@ -61,7 +61,7 @@ class reachTarget(object):
 
     # Function to Publish data to the publisher
     def addAltitude(self):
-        rate = rospy.Rate(10)
+        rate = rospy.Rate(5)
         movement_height = Joy()
         movement_height.axes = [0, 0, 0.1]
         for i in range(1, 20):
@@ -70,45 +70,28 @@ class reachTarget(object):
             rate.sleep()
 
     def goToTarget(self):
-        p = 0.5
-        rate = rospy.Rate(5)
+        p = 0.6
+        pAlt = 0.2
+        rate = rospy.Rate(10)
         kill_code = 0
         while not rospy.is_shutdown():
             if self.target != '':
                 # relative distance calculation
-                # Right and Left movement
+                # XYZ movement
                 movement_offset = Joy()
-                while self.target != '' and round(self.target.x, 2) != self.aligntarget_x:
-                    movement_offset.axes = [self.target.x*p, 0, 0]
-                    self.setpoint.publish(movement_offset)
-                    rospy.loginfo(movement_offset.axes)
-                    rate.sleep()
-
-
-                # front and back movement
-
-                movement_offset = Joy()
-                while self.target != '' and round(self.target.y, 2) != self.aligntarget_y:
-					imask = self.target.y *-1
-					movement_offset.axes = [0, imask*p, 0]
+                while self.target != '':
+					xmask = self.target.x*p
+					ymask = (self.target.y *-1)*p
+					zmask = (self.aligntarget_z-self.target.z)*pAlt
+					movement_offset.axes = [xmask, ymask, zmask]
 					self.setpoint.publish(movement_offset)
 					rospy.loginfo(movement_offset.axes)
+					if self.target != '' and round(abs(self.target.y), 2) == self.aligntarget_y and round(abs(self.target.x), 2) == self.aligntarget_x:
+						rospy.loginfo('centered!')
+						#break # to stop following #place code here 
+						continue
 					rate.sleep()
-
-                #Up and Down
-                movement_offset = Joy()
-                while self.target != '' and round(abs(self.target.z), 2) != self.aligntarget_z:
-                    movement_offset.axes = [0, 0, (self.aligntarget_z-self.target.z)*0.1]
-                    self.setpoint.publish(movement_offset)
-                    rospy.loginfo(movement_offset.axes)
-                    rate.sleep()
-                
-                
-                if self.target != '' and round(abs(self.target.y), 2) == self.aligntarget_y and round(abs(self.target.x), 2) == self.aligntarget_x:
-                    rospy.loginfo('centered!')
-                    continue
-
-
+						
 if __name__ == '__main__':
     rospy.init_node('reach_target', log_level=rospy.INFO)
     go_home_object = reachTarget()
