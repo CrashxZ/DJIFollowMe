@@ -22,8 +22,8 @@ class reachTarget(object):
         self.target = ''
         self.position = ''
         self.delta = ''
-        self.aligntarget_x = 0.0
-        self.aligntarget_y = 0.0
+        self.aligntarget_x = 0.00
+        self.aligntarget_y = 0.00
 
         # Subscriber to get Target Position
 

@@ -7,7 +7,7 @@ import json
 from ast import literal_eval
 import importlib
 from startn.msg import AprilTagDetectionArray, AprilTagDetection
-from startn.srv import SDKControlAuthority
+from startn.srv import SDKControlAuthority, DroneTaskControl
 from geometry_msgs.msg import PoseWithCovariance
 from std_msgs.msg import String
 from sensor_msgs.msg import Joy
@@ -23,20 +23,18 @@ class reachTarget(object):
         self.position = ''
         self.aligntarget_x = 0.0
         self.aligntarget_y = 0.0
-        self.aligntarget_z = 2.0
+        self.aligntarget_z = 1.5
         # Subscriber to get Target Position
 
         self._hunter = rospy.Subscriber('/tag_detections', AprilTagDetectionArray, self.get_target_location)
         self.rc = rospy.Subscriber('/dji_sdk/rc', Joy, self.manual_override)
+        self.ctrlFlag = 0
 
         # Publisher to send delta values to the drone for flying
 
         self.setpoint = rospy.Publisher('/dji_sdk/flight_control_setpoint_ENUvelocity_yawrate', Joy, queue_size=0)
 
-        rospy.wait_for_service('/dji_sdk/sdk_control_authority')
-        control = rospy.ServiceProxy('/dji_sdk/sdk_control_authority', SDKControlAuthority)
-        print(control(SDKControlAuthority._request_class.REQUEST_CONTROL))
-        self.addAltitude()
+        #self.addAltitude()
         self.goToTarget()
 
     # Subscriber callback for Target Position Information
@@ -46,6 +44,11 @@ class reachTarget(object):
         if msg.detections != '':
             if len(msg.detections) > 0:
                 self.target = msg.detections[0].pose.pose.pose.position
+                #rospy.wait_for_service('/dji_sdk/sdk_control_authority')
+                if self.ctrlFlag == 0:
+					control = rospy.ServiceProxy('/dji_sdk/sdk_control_authority', SDKControlAuthority)
+					print(control(SDKControlAuthority._request_class.REQUEST_CONTROL))
+					self.ctrlFlag = 1
             else:
                 self.target = ''
 
@@ -71,11 +74,11 @@ class reachTarget(object):
 
     def goToTarget(self):
         p = 0.6
-        pAlt = 0.2
+        pAlt = 0.3
         rate = rospy.Rate(5)
-        kill_code = 0
+        land_code = 0
         while not rospy.is_shutdown():
-            if self.target != '':
+            if self.target != '' and land_code == 0:
                 # relative distance calculation
                 # XYZ movement
                 movement_offset = Joy()
@@ -84,13 +87,14 @@ class reachTarget(object):
 					ymask = round((self.target.y *-1)*p,5)
 					zmask = round((self.aligntarget_z-self.target.z)*pAlt,5)
 					movement_offset.axes = [xmask, ymask, zmask]
+					print(movement_offset.axes)
 					self.setpoint.publish(movement_offset)
-					rospy.loginfo(movement_offset.axes)
-					if self.target != '' and round(abs(self.target.y), 2) == self.aligntarget_y and round(abs(self.target.x), 2) == self.aligntarget_x:
-						rospy.loginfo('centered!')
-						#break # to stop following #place code here 
-						rate.sleep()
-						continue
+					if self.target != '' and round(abs(ymask), 2) < 0.3 and round(abs(xmask), 2) < 0.3 and round(abs(zmask), 2) < 0.3:
+						rospy.loginfo('Landing!')
+						command = rospy.ServiceProxy('/dji_sdk/drone_task_control', DroneTaskControl)
+						print(command(DroneTaskControl._request_class.TASK_LAND))
+						land_code = 1
+						break # to stop following #place code here 
 					rate.sleep()
 						
 if __name__ == '__main__':
