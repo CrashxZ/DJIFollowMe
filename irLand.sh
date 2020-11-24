@@ -16,7 +16,7 @@ echo "Setting LocalPosition!"
 sleep 5
 cd $HOME/followtag
 source devel/setup.bash
-rosrun startn test.py
+rosrun startn infraredLanding.py
 $SHELL
 
 
