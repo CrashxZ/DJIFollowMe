@@ -3,23 +3,25 @@ import numpy as np
 import socket
 import json
 
-
+#preset the camera parameters for recognition. (Helpful for uniform scaling)
 frameWidth = 640
 frameHeight = 480
+#start the camera
 cap = cv2.VideoCapture(1)
 #cap = cv2.VideoCapture('onboard.mp4')
 cap.set(3, frameWidth)
 cap.set(4, frameHeight)
 cap.set(15,150)
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-myColorValues = [[255,246,255]] #[197,170,196],
 
+#setup socet to send coordinates:  irRecog.py -->  ROS Script
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+# to save the video from onboard camera before and after processing.
 v = cv2.VideoWriter('onboard.mp4',cv2.VideoWriter_fourcc('F','M','P','4'), 30,(640,480))
 v2 = cv2.VideoWriter('mask.mp4',cv2.VideoWriter_fourcc('F','M','P','4'), 30,(640,480))
-
+#function to send data to desired IP and PORT (for ROS to intercept)
 def publishString(msg):
 	sock.sendto(msg, ("127.0.0.1", 4041))
-
+#Function to get countours in the image
 def getContours(img):
 	#cv2.imshow('x1',img)
 	img = np.uint8(img*255)
@@ -28,6 +30,7 @@ def getContours(img):
 	ret, thresh = cv2.threshold(img, 127, 255, 0)
 	#print(cv2.CAP_PROP_FPS)
 	contours,hierarchy = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+	#initialize x,y,h,w
 	x,y,w,h = 0,0,0,0
 	#print(len(contours))
 	for cnt in contours:
@@ -38,9 +41,13 @@ def getContours(img):
 			approx = cv2.approxPolyDP(cnt,0.02*peri,True)
 			x, y, w, h = cv2.boundingRect(approx)
 	cv2.imshow('x',img)
+	#return center of the detection box x,y
 	return x+w/2,y+h/2
+#function to morph image to detect Infrared
 def imageMorph(img):
+	#HSV
 	imgHSV = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	#YCbCr
 	imgYCC = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 	v = imgHSV[:,:,2]
 	y = imgYCC[:,:,0]
@@ -70,7 +77,9 @@ def getLocation(img):
 	"x" : float(x)/float(640),
 	"y" : float(y)/float(480)
 	}
+	# x,y = center of the detection box
 	print(msg)
+	# publish x,y.
 	publishString(str.encode(json.dumps(msg)))#"'x':{} , 'y':{}".format(x/640,y/480)))
 	return x,y
 	
@@ -83,13 +92,6 @@ while True:
 		cv2.imshow("Original", img)
 		v.write(img)
 		imx = imageMorph(img)
-		#newPoints = findColor(imx,myColorValues)
-		#if len(newPoints)!=0:
-		#    for newP in newPoints:
-		#        myPoints.append(newP)
-		#if len(myPoints)!=0:
-		#    drawOnCanvas(myPoints,myColorValues)
-		#getContours(imageMorph(img))
 		x,y = getLocation(imx)
 		cv2.circle(img,(x,y),15,[0,0,255],cv2.FILLED)
 		cv2.imshow("Result", img)
